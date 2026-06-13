@@ -877,6 +877,262 @@ def cmd_file(args):
     elif args.action == "download":
         cmd_file_download(args.password, args.out)
 
+def cmd_news(args):
+    if args.show:
+        msg_id = args.show
+        log_info(f"正在查询文章详情 [ID: {msg_id}]...")
+        status, body, _ = make_request(f"/article/article-detail/{msg_id}/", method="GET", follow_redirects=True)
+        if status != 200:
+            log_error(f"获取文章详情失败 (HTTP Code: {status})")
+            return
+        html_content = body.decode("utf-8", errors="ignore")
+        
+        title = "无标题"
+        title_m = re.search(r'<div class="ArticleTitle[^>]*>(.*?)</div>', html_content, re.DOTALL)
+        if title_m:
+            title = clean_html(title_m.group(1))
+            
+        source = "未知"
+        source_m = re.search(r'来源：\s*([^<]+)', html_content)
+        if source_m:
+            source = clean_html(source_m.group(1))
+            
+        pub_time = "未知"
+        time_m = re.search(r'发布时间：\s*([^\s<]+(?:\s+[^\s<]+)?)', html_content)
+        if time_m:
+            pub_time = time_m.group(1).strip()
+            
+        content = ""
+        content_m = re.search(r'<div class="ArticleContent(?:\s+[^>]*|)\s*>(.*?)</div>', html_content, re.DOTALL)
+        if content_m:
+            content = clean_html(content_m.group(1))
+            
+        print(f"\n{C_BOLD}{C_GREEN}📄 文章详情 {C_RESET}")
+        print(f"{C_BLUE}──────────────────────────────────────────────────{C_RESET}")
+        print(f"{C_BOLD}标题：{C_RESET} {C_YELLOW}{title}{C_RESET}")
+        print(f"{C_BOLD}发布人：{C_RESET} {C_CYAN}{source}{C_RESET}    |    {C_BOLD}时间：{C_RESET} {C_GREY}{pub_time}{C_RESET}")
+        print(f"{C_BLUE}──────────────────────────────────────────────────{C_RESET}")
+        print(f"{content}")
+        print(f"{C_BLUE}──────────────────────────────────────────────────{C_RESET}\n")
+        return
+
+    # 栏目映射支持
+    col_mapping = {
+        "news": "13",      # 新闻聚焦
+        "notice": "19",    # 校内公示
+        "announcement": "16", # 通知公告
+        "duty": "51"       # 值周小结
+    }
+    col_id = col_mapping.get(args.column, args.column)
+    page = args.page or 1
+    
+    log_info(f"正在获取栏目 [{args.column}] 文章列表 (第 {page} 页)...")
+    status, body, _ = make_request(f"/article/column-detail/{col_id}/?page={page}", method="GET", follow_redirects=True)
+    if status != 200:
+        log_error(f"获取文章列表失败 (HTTP Code: {status})")
+        return
+    html_content = body.decode("utf-8", errors="ignore")
+    
+    items = re.findall(r'href=["\']/article/article-detail/(\d+)/["\'][^>]*>\s*(.*?)\s*</a>.*?class="[^"]*text-secondary"[^>]*>\s*(.*?)\s*</div>', html_content, re.DOTALL)
+    if not items:
+        log_warn("没有找到任何文章记录。")
+        return
+        
+    rows = []
+    for art_id, title, date in items:
+        rows.append([art_id, clean_html(title), clean_html(date)])
+        
+    print(f"\n{C_BOLD}{C_GREEN}📄 文章列表 (栏目: {args.column}, 第 {page} 页) ==={C_RESET}")
+    headers = ["文章 ID", "标题", "发布日期"]
+    col_widths = [10, 48, 14]
+    draw_table(headers, col_widths, rows)
+    print(f"{C_GREY}提示: 使用 `python3 ch_cli.py news --show <文章ID>` 阅读正文内容。{C_RESET}\n")
+
+def cmd_bedroom(args):
+    if args.action == "class":
+        grade = args.grade
+        class_query = args.ch_class
+        res = find_class_id(grade, class_query)
+        if not res:
+            log_error(f"未能在年级 {grade} 中找到匹配班级 \"{class_query}\"")
+            return
+        class_id, class_name = res
+        log_info(f"正在查询 [{class_name}] 的寝室分配情况...")
+        
+        post_data = {
+            "chGradeIDForName": grade,
+            "chClassIDForName": class_id
+        }
+        status, body, _ = make_request("/classappraise/QueryBedroomsByClassID_JustForView/", method="POST", data=post_data)
+        if status != 200:
+            log_error(f"查询寝室关系失败 (HTTP Code: {status})")
+            return
+        html_content = body.decode("utf-8", errors="ignore")
+        
+        alert_m = re.search(r'class="alert alert-primary"[^>]*>\s*(.*?)\s*</div>', html_content, re.DOTALL)
+        if alert_m:
+            result_text = clean_html(alert_m.group(1))
+            print(f"\n{C_BOLD}{C_GREEN}🏠 寝室分配查询结果 {C_RESET}")
+            print(f"{C_BLUE}──────────────────────────────────────────────────{C_RESET}")
+            print(f"{C_YELLOW}{result_text}{C_RESET}")
+            print(f"{C_BLUE}──────────────────────────────────────────────────{C_RESET}\n")
+        else:
+            log_warn("未查到该班级的寝室分配数据。")
+            
+    elif args.action == "hygiene":
+        dorm_mapping = {
+            "1": "3号楼", "2": "4号楼", "3": "5号楼", "4": "6号楼", "5": "7号楼", "6": "8号楼", "7": "9号楼", "8": "10号楼", "9": "1号楼"
+        }
+        
+        # 楼宇输入映射
+        dorm_id = args.dorm
+        for d_id, d_name in dorm_mapping.items():
+            if d_id in args.dorm or d_name in args.dorm:
+                dorm_id = d_id
+                break
+                
+        dorm_name = dorm_mapping.get(dorm_id, f"未知楼宇(ID:{dorm_id})")
+        
+        # 时间范围处理
+        start_date = args.start
+        if not start_date:
+            start_date = time.strftime("%Y-%m-%d", time.localtime(time.time() - 30 * 86400))
+        end_date = args.end
+        if not end_date:
+            end_date = time.strftime("%Y-%m-%d")
+            
+        log_info(f"正在查询 [{dorm_name}] 的寝室考评记录 (日期: {start_date} 至 {end_date})...")
+        
+        post_data = {
+            "chDormitoryForName": dorm_id,
+            "theBeginDateForName": start_date,
+            "theEndDateForName": end_date
+        }
+        status, body, _ = make_request("/classappraise/BedRoom_DisciplineHygiene_JustForView/", method="POST", data=post_data)
+        if status != 200:
+            log_error(f"查询宿舍考评失败 (HTTP Code: {status})")
+            return
+        html_content = body.decode("utf-8", errors="ignore")
+        
+        tr_pattern = re.compile(r'<tr[^>]*>(.*?)</tr>', re.DOTALL)
+        trs = tr_pattern.findall(html_content)
+        
+        rows = []
+        for tr in trs:
+            tds = re.findall(r'<td[^>]*>(.*?)</td>', tr, re.DOTALL)
+            if len(tds) >= 4:
+                room_name = clean_html(tds[0])
+                class_name = clean_html(tds[1])
+                hyg_score = clean_html(tds[2])
+                disc_score = clean_html(tds[3])
+                total_score = clean_html(tds[4]) if len(tds) > 4 else ""
+                
+                # 如果没有启用 --all，只显示合计分数非空且有扣分记录的项目
+                if not args.all:
+                    if not total_score or total_score.strip() == "" or total_score.strip() == "0":
+                        continue
+                        
+                rows.append([
+                    room_name,
+                    class_name,
+                    hyg_score or "-",
+                    disc_score or "-",
+                    total_score or "-"
+                ])
+                
+        if not rows:
+            log_warn("没有找到任何相关的寝室考评扣分记录。")
+            return
+            
+        print(f"\n{C_BOLD}{C_GREEN}🧹 {dorm_name} 寝室卫生与纪律扣分考评总表 ==={C_RESET}")
+        headers = ["寝室", "班级", "卫生扣分", "纪律扣分", "合计"]
+        col_widths = [10, 16, 10, 10, 10]
+        draw_table(headers, col_widths, rows)
+        print()
+
+def cmd_lostfound(args):
+    if args.show:
+        msg_id = args.show
+        log_info(f"正在查询失物招领详情 [ID: {msg_id}]...")
+        status, body, _ = make_request(f"/lostAndFound/lostAndFoundDetail/{msg_id}/", method="GET", follow_redirects=True)
+        if status != 200:
+            log_error(f"获取失物招领详情失败 (HTTP Code: {status})")
+            return
+        html_content = body.decode("utf-8", errors="ignore")
+        
+        title = "无标题"
+        title_m = re.search(r'<div class="ArticleTitle[^>]*>(.*?)</div>', html_content, re.DOTALL)
+        if title_m:
+            title = clean_html(title_m.group(1))
+            
+        reporter = "未知"
+        rep_m = re.search(r'来源：\s*([^<]+)', html_content)
+        if rep_m:
+            reporter = clean_html(rep_m.group(1))
+            
+        reviewer = "未知"
+        rev_m = re.search(r'审核人：\s*([^<]+)', html_content)
+        if rev_m:
+            reviewer = clean_html(rev_m.group(1))
+            
+        pub_time = "未知"
+        time_m = re.search(r'发布时间：\s*([^\s<]+(?:\s+[^\s<]+)?)', html_content)
+        if time_m:
+            pub_time = time_m.group(1).strip()
+            
+        content = ""
+        content_m = re.search(r'<div class="ArticleContent(?:\s+[^>]*|)\s*>(.*?)</div>', html_content, re.DOTALL)
+        if content_m:
+            content = clean_html(content_m.group(1))
+            
+        print(f"\n{C_BOLD}{C_GREEN}🔍 失物招领详情 {C_RESET}")
+        print(f"{C_BLUE}──────────────────────────────────────────────────{C_RESET}")
+        print(f"{C_BOLD}物品主题：{C_RESET} {C_YELLOW}{title}{C_RESET}")
+        print(f"{C_BOLD}登记来源：{C_RESET} {C_CYAN}{reporter}{C_RESET}    |    {C_BOLD}时间：{C_RESET} {C_GREY}{pub_time}{C_RESET}")
+        print(f"{C_BOLD}审 核 人：{C_RESET} {reviewer}")
+        print(f"{C_BLUE}──────────────────────────────────────────────────{C_RESET}")
+        print(f"{content}")
+        print(f"{C_BLUE}──────────────────────────────────────────────────{C_RESET}\n")
+        return
+
+    page = args.page or 1
+    log_info(f"正在获取全校失物招领列表 (第 {page} 页)...")
+    status, body, _ = make_request(f"/lostAndFound/lostAndFoundList/?page={page}", method="GET", follow_redirects=True)
+    if status != 200:
+        log_error(f"获取失物招领列表失败 (HTTP Code: {status})")
+        return
+    html_content = body.decode("utf-8", errors="ignore")
+    
+    tr_pattern = re.compile(r'<tr[^>]*>(.*?)</tr>', re.DOTALL)
+    trs = tr_pattern.findall(html_content)
+    
+    rows = []
+    for tr in trs:
+        tds = re.findall(r'<(?:td|th)[^>]*>(.*?)</(?:td|th)>', tr, re.DOTALL)
+        if len(tds) >= 8 and "类别" not in tds[1]:
+            lf_id = ""
+            id_m = re.search(r'href=["\']/lostAndFound/lostAndFoundDetail/(\d+)/["\']', tds[2])
+            if id_m:
+                lf_id = id_m.group(1)
+                
+            category = clean_html(tds[1])
+            title = clean_html(tds[2])
+            reporter = clean_html(tds[3])
+            start_date = clean_html(tds[6])
+            status_text = clean_html(tds[8]) if len(tds) > 8 else ""
+            
+            rows.append([lf_id, category, title, reporter, start_date, status_text])
+            
+    if not rows:
+        log_warn("没有找到任何失物招领记录。")
+        return
+        
+    print(f"\n{C_BOLD}{C_GREEN}🔍 全校失物招领列表 (第 {page} 页) ==={C_RESET}")
+    headers = ["ID", "类别", "物品名称", "发布处", "发布日期", "状态"]
+    col_widths = [8, 8, 20, 16, 12, 16]
+    draw_table(headers, col_widths, rows)
+    print(f"{C_GREY}提示: 使用 `python3 ch_cli.py lostfound --show <ID>` 查看招领联系方式等详情。{C_RESET}\n")
+
 def cmd_login(args):
     cookie_str = args.cookie
     if not cookie_str:
@@ -976,6 +1232,33 @@ def main():
     parser_download.add_argument("password", type=str, help="6 位文件提取码")
     parser_download.add_argument("--out", type=str, default=".", help="文件保存下载的本地目录")
 
+    # news command
+    parser_news = subparsers.add_parser("news", help="查询校内文章资讯与公告")
+    parser_news.add_argument("--column", type=str, default="19", help="栏目ID或别名 (13=新闻聚焦, 19=校内公示, 51=值周小结)")
+    parser_news.add_argument("--page", type=int, default=1, help="页码")
+    parser_news.add_argument("--show", type=int, help="要阅读的文章 ID")
+
+    # bedroom command
+    parser_bed = subparsers.add_parser("bedroom", help="查询班级寝室与宿舍卫生考评")
+    bed_subparsers = parser_bed.add_subparsers(dest="action", help="查询动作")
+    
+    # bedroom class
+    parser_bed_class = bed_subparsers.add_parser("class", help="查询班级使用的寝室号")
+    parser_bed_class.add_argument("grade", type=int, choices=[1, 2, 3], help="年级 (1=高一, 2=高二, 3=高三)")
+    parser_bed_class.add_argument("ch_class", type=str, help="班级名称或数字")
+    
+    # bedroom hygiene
+    parser_bed_hyg = bed_subparsers.add_parser("hygiene", help="查询宿舍楼宇卫生与纪律扣分表")
+    parser_bed_hyg.add_argument("dorm", type=str, help="楼宇名称或ID (如 1=3号楼, 3=5号楼等)")
+    parser_bed_hyg.add_argument("--start", type=str, help="开始日期 (格式: YYYY-MM-DD)")
+    parser_bed_hyg.add_argument("--end", type=str, help="结束日期 (格式: YYYY-MM-DD)")
+    parser_bed_hyg.add_argument("--all", "-a", action="store_true", help="显示该楼宇全部宿舍（包括未扣分宿舍）")
+
+    # lostfound command
+    parser_lf = subparsers.add_parser("lostfound", aliases=["lf"], help="查询校园失物招领")
+    parser_lf.add_argument("--page", type=int, default=1, help="页码")
+    parser_lf.add_argument("--show", type=int, help="要查看的失物招领详情 ID")
+
     args = parser.parse_args()
 
     if args.command == "login":
@@ -992,6 +1275,12 @@ def main():
         cmd_duty(args)
     elif args.command == "file":
         cmd_file(args)
+    elif args.command == "news":
+        cmd_news(args)
+    elif args.command == "bedroom":
+        cmd_bedroom(args)
+    elif args.command == "lostfound" or args.command == "lf":
+        cmd_lostfound(args)
     else:
         parser.print_help()
 
