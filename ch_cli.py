@@ -1248,7 +1248,7 @@ def main():
 
     # news command
     parser_news = subparsers.add_parser("news", help="查询校内文章资讯与公告")
-    parser_news.add_argument("--column", type=str, default="19", help="栏目ID或别名 (13=新闻聚焦, 19=校内公示, 51=值周小结)")
+    parser_news.add_argument("--column", type=str, default="16", help="栏目ID或别名 (13=新闻聚焦, 16=通知公告, 19=校内公示, 51=值周小结)")
     parser_news.add_argument("--page", type=int, default=1, help="页码")
     parser_news.add_argument("--show", type=int, help="要阅读的文章 ID")
 
