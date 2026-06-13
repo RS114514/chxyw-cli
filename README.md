@@ -151,6 +151,31 @@ python3 ch_cli.py login
 
 ---
 
+## 💻 Windows 可执行文件 (.exe) 独立运行与打包
+
+本项目支持在免 Python 环境依赖的 Windows 环境下直接运行：
+
+### 1. 从 GitHub 页面免环境运行（推荐）
+每次向 GitHub 仓库推送代码时，自动化流水线（GitHub Actions）会自动启动 Windows 环境将程序编译为 `.exe` 文件。
+- 前往 GitHub 仓库的 **Actions** 页面。
+- 点击最新一次成功的运行记录（通常名为 *Build Executable*）。
+- 滚动至页面底部的 **Artifacts** 部分，点击下载 `chunhui-cil-windows` 压缩包。
+- 解压后即可直接双击或在 Windows 命令提示符（CMD/PowerShell）下独立运行 `chunhui-cil.exe`。
+
+### 2. 在 Windows 本地手动打包
+若要在本地电脑上打包成 `.exe`，请按以下步骤操作：
+1. 安装打包工具：
+   ```bash
+   pip install pyinstaller
+   ```
+2. 执行打包指令：
+   ```bash
+   pyinstaller --onefile --name chunhui-cil ch_cli.py
+   ```
+3. 打包完成后，您可以在生成的 `dist/` 目录下找到 `chunhui-cil.exe` 可执行文件。
+
+---
+
 ## ⚙️ 网络健壮性说明
 *   本工具在底层 `make_request()` 请求中嵌入了 `10 秒` 超时防护。
 *   针对校园网偶发的 `502 Bad Gateway` 或 `504 Gateway Timeout` 异常，内置了最多 `3 次` 的自动延迟重试机制，大幅提升了在网络不稳定环境下的运行成功率。
