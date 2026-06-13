@@ -1,0 +1,10 @@
+.DS_Store
+__pycache__/
+*.pyc
+*.zip
+*.pptx
+file_download_test/
+test_dir/
+scratch/**/*.html
+scratch/**/*.zip
+scratch/**/*.txt
