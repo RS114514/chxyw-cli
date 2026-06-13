@@ -27,7 +27,7 @@ jobs:
         pyinstaller --onefile --name chunhui-cil ch_cli.py
 
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: chunhui-cil-windows
         path: dist/chunhui-cil.exe
