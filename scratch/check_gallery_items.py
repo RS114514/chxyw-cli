@@ -17,6 +17,7 @@ def test():
     print("=== 开始群晖相册 API 深入探测 ===")
     
     # 1. 获取文件夹列表
+    # 尝试两个网关
     gateways = [
         f"http://{IP_PORT}/photo/webapi/entry.cgi",
         f"http://{IP_PORT}/webapi/entry.cgi"
@@ -58,14 +59,19 @@ def test():
         return
         
     # 2. 对每个文件夹获取照片列表
+    # 尝试两种网关和两种 API
+    # 我们拿第一个文件夹作为测试目标
     target_folder = folders[0]
     fid = target_folder.get("id")
     fname = target_folder.get("name")
     print(f"\n选择测试文件夹: {fname} (ID: {fid})")
     
     test_cases = [
+        # (网关, API)
         (f"http://{IP_PORT}/photo/webapi/entry.cgi", "SYNO.FotoTeam.Browse.Item"),
         (f"http://{IP_PORT}/webapi/entry.cgi", "SYNO.FotoTeam.Browse.Item"),
+        (f"http://{IP_PORT}/photo/webapi/entry.cgi", "SYNO.Foto.Browse.Item"),
+        (f"http://{IP_PORT}/webapi/entry.cgi", "SYNO.Foto.Browse.Item"),
     ]
     
     for gw, api in test_cases:
