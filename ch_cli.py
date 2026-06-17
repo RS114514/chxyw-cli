@@ -1728,13 +1728,13 @@ def get_key_unix():
     try:
         tty.setraw(fd)
         ch = os.read(fd, 8)
-        if ch == b'\x1b[A':
+        if ch in (b'\x1b[A', b'\x1bOA'):
             return 'up'
-        elif ch == b'\x1b[B':
+        elif ch in (b'\x1b[B', b'\x1bOB'):
             return 'down'
-        elif ch == b'\x1b[C':
+        elif ch in (b'\x1b[C', b'\x1bOC'):
             return 'right'
-        elif ch == b'\x1b[D':
+        elif ch in (b'\x1b[D', b'\x1bOD'):
             return 'left'
         elif ch == b'\x1b':
             return 'esc'
@@ -1979,7 +1979,7 @@ def run_tui():
         # 清屏
         os.system('cls' if os.name == 'nt' else 'clear')
         print(f"{C_BOLD}{C_CYAN}=== 春晖中学校园网 CLI/TUI 工具 ==={C_RESET}")
-        print("使用 [↑/↓] 键移动光标，[Enter] 键确认选择，也可以输入 1-9 直接跳转\n")
+        print("使用 [↑/↓] 键移动光标，[Enter] 键确认选择\n")
         
         for idx, (option, cmd) in enumerate(options):
             cmd_desc = f" [{cmd}]" if cmd else ""
@@ -1989,19 +1989,14 @@ def run_tui():
                 print(f"    {option:<36}{C_GREY}{cmd_desc}{C_RESET}")
                 
         key = getkey()
-        if key == 'up':
+        if key in ('up', '\x1b[A', '\x1bOA'):
             selected_idx = (selected_idx - 1) % len(options)
-        elif key == 'down':
+        elif key in ('down', '\x1b[B', '\x1bOB'):
             selected_idx = (selected_idx + 1) % len(options)
-        elif key == 'enter':
+        elif key in ('enter', '\r', '\n'):
             if selected_idx == len(options) - 1:
                 break
             else:
-                handle_tui_action(selected_idx)
-        elif key.isdigit():
-            val = int(key)
-            if 1 <= val <= 9:
-                selected_idx = val - 1
                 handle_tui_action(selected_idx)
         elif key == 'q' or key == 'esc':
             break
